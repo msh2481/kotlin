@@ -12,11 +12,10 @@ import kotlinx.coroutines.flow.*
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 class ItemsRepository {
-    private val tab1Flow = loadMoreItems(0)
-    private val tab2Flow = loadMoreItems(1000)
+    private val flows = (loadMoreItems(0) to loadMoreItems(0))//bookInfTwoFlows()
 
-    fun getTab1Flow() = tab1Flow
-    fun getTab2Flow() = tab2Flow
+    fun getTab1Flow() = flows.first //.map { it.title }
+    fun getTab2Flow() = flows.second //.map { it.author }
 }
 
 @Composable
@@ -26,7 +25,7 @@ fun App() {
 
     MaterialTheme {
         var selectedTabIndex by remember { mutableStateOf(0) }
-        val tabs = listOf("Tab 1", "Tab 2")
+        val tabs = listOf("Books", "Authors")
 
         Column {
             TabRow(selectedTabIndex = selectedTabIndex) {
@@ -61,7 +60,7 @@ fun ItemList(itemsFlow: Flow<String>) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(vertical = 4.dp)
     ) {
         items(items) { item ->
             ItemCard(text = item)

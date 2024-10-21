@@ -1,7 +1,6 @@
 package org.example.project
-import kotlinx.serialization.Serializable
 
-@Serializable
+@kotlinx.serialization.Serializable
 data class GoogleBooksResponse(
     val items: List<Volume>? = null
 )

@@ -1,20 +1,30 @@
 package org.example.project
 
 import io.ktor.client.*
-import io.ktor.client.call.*
+import io.ktor.client.call.body
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
-import io.ktor.serialization.kotlinx.json.*
+import io.ktor.client.request.parameter
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.internal.ChannelFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlin.coroutines.coroutineContext
+import kotlin.random.Random
 
 const val apiKey = "AIzaSyCBK0mcT7iHUC9qiQU4vBkHpk-bbeNtlZU"
 
@@ -69,27 +79,40 @@ fun idxToQuery(idx: Int): String {
     return sb.toString()
 }
 
-fun queriesInf(): Flow<String> = flow {
-    var idx = 1
-    while (true) {
-        emit(idxToQuery(idx))
-        idx += 1
-    }
-}
-
-fun booksInf(): Flow<BookInfo> = flow {
-    queriesInf().collect { query ->
-        fetchBooks(query).asFlow().collect {
-            emit(it)
+fun queriesInf(): Channel<String> = runBlocking {
+    val channel = Channel<String>()
+    CoroutineScope(Dispatchers.Default).launch {
+        var idx = 1
+        while (true) {
+            channel.send(idxToQuery(idx))
+            idx += 1
         }
     }
+    channel
 }
 
-suspend fun bookInfTwoFlows(): Pair<Flow<BookInfo>, Flow<BookInfo>> {
-    val sharedFlow = booksInf().shareIn(
-        scope = CoroutineScope(coroutineContext),
-        started = SharingStarted.Lazily,
-        replay = 0,
-    )
-    return sharedFlow.map { it } to sharedFlow.map { it }
+ fun titlesChannel(): Channel<String> = runBlocking {
+     val input = queriesInf()
+     val output = Channel<String>()
+     CoroutineScope(Dispatchers.Default).launch {
+         while (true) {
+             val query = input.receive()
+             val books = fetchBooks(query)
+             books.forEach { output.send(it.title) }
+         }
+     }
+     output
+}
+
+fun authorsChannel(): Channel<String> = runBlocking {
+    val input = queriesInf()
+    val output = Channel<String>()
+    CoroutineScope(Dispatchers.Default).launch {
+        while (true) {
+            val query = input.receive()
+            val books = fetchBooks(query)
+            books.forEach { output.send(it.authors.first()) }
+        }
+    }
+    output
 }

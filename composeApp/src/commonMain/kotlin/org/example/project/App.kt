@@ -11,11 +11,60 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.*
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-class ItemsRepository {
-    private val flows = (loadMoreItems(0) to loadMoreItems(0))//bookInfTwoFlows()
+import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.request.*
+import io.ktor.serialization.kotlinx.json.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.json.Json
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.consumeEach
 
-    fun getTab1Flow() = flows.first //.map { it.title }
-    fun getTab2Flow() = flows.second //.map { it.author }
+
+private val client = HttpClient(CIO) {
+    install(ContentNegotiation) {
+        json(Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        })
+    }
+}
+
+fun booksChannel(): Channel<String> = Channel<String>().apply {
+    CoroutineScope(Dispatchers.Default).launch {
+        while (true) {
+            try {
+                val books: List<String> = client.get("http://localhost:8080/books").body()
+                books.forEach { send(it) }
+            } catch (e: Exception) {
+                println("Error: ${e.message}")
+            }
+        }
+    }
+}
+
+fun authorsChannel(): Channel<String> = Channel<String>().apply {
+    CoroutineScope(Dispatchers.Default).launch {
+        while (true) {
+            try {
+                val authors: List<String> = client.get("http://localhost:8080/authors").body()
+                authors.forEach { send(it) }
+            } catch (e: Exception) {
+                println("Error: ${e.message}")
+            }
+        }
+    }
+}
+
+
+class ItemsRepository {
+    fun getBooksChannel() = booksChannel()
+    fun getAuthorsChannel() = authorsChannel()
 }
 
 @Composable
@@ -39,20 +88,20 @@ fun App() {
             }
 
             when (selectedTabIndex) {
-                0 -> ItemList(itemsFlow = repository.getTab1Flow())
-                1 -> ItemList(itemsFlow = repository.getTab2Flow())
+                0 -> ItemList(itemsChannel = repository.getBooksChannel())
+                1 -> ItemList(itemsChannel = repository.getAuthorsChannel())
             }
         }
     }
 }
 
 @Composable
-fun ItemList(itemsFlow: Flow<String>) {
+fun ItemList(itemsChannel: Channel<String>) {
     val listState = rememberLazyListState()
     val items = remember { mutableStateListOf<String>() }
 
-    LaunchedEffect(itemsFlow) {
-        itemsFlow.collect { newItem ->
+    LaunchedEffect(itemsChannel) {
+        itemsChannel.consumeEach { newItem ->
             items.add(newItem)
         }
     }
@@ -88,14 +137,5 @@ fun ItemCard(text: String) {
             text = text,
             modifier = Modifier.padding(16.dp)
         )
-    }
-}
-
-fun loadMoreItems(startIndex: Int): Flow<String> = flow {
-    var currentIndex = startIndex
-    while (true) {
-        emit(currentIndex.toString())
-        currentIndex++
-        kotlinx.coroutines.delay(100) // Simulate network delay
     }
 }

@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.ktor)
     application
 }
+apply(from="src/main/kotlin/org/example/project/Git.gradle.kts")
 
 group = "org.example.project"
 version = "1.0.0"
